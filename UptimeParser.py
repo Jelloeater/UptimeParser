@@ -1,5 +1,4 @@
 import logging
-from datetime import timedelta
 
 logging.basicConfig(filename="uptime.log",
                     format="[%(asctime)s] [%(levelname)8s] --- %(message)s (%(filename)s:%(lineno)s)",
@@ -25,12 +24,14 @@ def get_uptime_datetime(address_in, snmp_comm_in='public', snmp_port_in=161):
                                     errorIndex and varBinds[int(errorIndex) - 1][0] or '?'))
     else:
         for varBind in varBinds:
-            logging.error(' = '.join([x.prettyPrint() for x in varBind]))
+            logging.info(' = '.join([x.prettyPrint() for x in varBind]))
 
-
-    ticks = int(varBinds[0][1])
-    seconds = ticks / 100
-    return datetime.timedelta(seconds=seconds)
+    try:
+        ticks = int(varBinds[0][1])
+        seconds = ticks / 100
+        return datetime.timedelta(seconds=seconds)
+    except IndexError:
+        return False
 
 
 def get_device_up_time_list():
@@ -44,14 +45,13 @@ def get_device_up_time_list():
     return device_list
 
 
-
-
 class device:
-    up_time: timedelta
+    name: str
+    up_time: datetime.timedelta
 
     def __init__(self):
         self.name = ""
-        self.up_time = datetime.timedelta
+        self.up_time = None
 
     def is_over_x_hours(self, over_hours=24):
         dt = datetime.timedelta(hours=over_hours)
@@ -63,8 +63,14 @@ class device:
 
 def main():
     ut_list = get_device_up_time_list()
+    devices_over_time_limit = 0
     for i in ut_list:
-        print(i.is_over_x_hours())
+        if i.up_time:
+            if i.is_over_x_hours():
+                devices_over_time_limit = devices_over_time_limit + 1
+        else:
+            logging.error("Cannot get up time from: " + str(i.name))
+    print(devices_over_time_limit)
 
 
 if __name__ == "__main__":
