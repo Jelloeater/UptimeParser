@@ -1,5 +1,6 @@
 import logging
-from multiprocessing.pool import Pool
+import multiprocessing
+
 
 logging.basicConfig(filename="uptime.log",
                     format="[%(asctime)s] [%(levelname)8s] --- %(message)s (%(filename)s:%(lineno)s)",
@@ -28,11 +29,12 @@ class device:
         self.name = name_in
         self.up_time = None
 
-    def update_uptime(self, snmp_comm_in='public', snmp_port_in=161):
+    @staticmethod
+    def update_uptime(name_in, snmp_comm_in='public', snmp_port_in=161):
         errorIndication, errorStatus, errorIndex, varBinds = next(
             getCmd(SnmpEngine(),
                    CommunityData(snmp_comm_in, mpModel=0),
-                   UdpTransportTarget((self.name, snmp_port_in)),
+                   UdpTransportTarget((name_in, snmp_port_in)),
                    ContextData(),
                    ObjectType(ObjectIdentity('SNMPv2-MIB', 'sysUpTime', 0)))
         )
@@ -49,9 +51,9 @@ class device:
         try:
             ticks = int(varBinds[0][1])
             seconds = ticks / 100
-            self.up_time = datetime.timedelta(seconds=seconds)
+            return datetime.timedelta(seconds=seconds)
         except IndexError:
-            self.up_time = False
+            return False
 
     def is_over_x_hours(self, over_hours=24):
         dt = datetime.timedelta(hours=over_hours)
@@ -64,8 +66,12 @@ class device:
 def main():
     device_list = get_device_list()
 
+
+
     for i in device_list:
-        i.update_uptime()
+        # p = multiprocessing.Process()
+        # p.start()
+        i.up_time = i.update_uptime(i.name)
 
 
     devices_over_time_limit = 0
