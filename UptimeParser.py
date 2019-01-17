@@ -1,4 +1,5 @@
 import logging
+from multiprocessing.pool import Pool
 
 logging.basicConfig(filename="uptime.log",
                     format="[%(asctime)s] [%(levelname)8s] --- %(message)s (%(filename)s:%(lineno)s)",
@@ -9,14 +10,12 @@ from pysnmp.hlapi import *
 
 
 
-def get_device_up_time_list():
+def get_device_list():
     device_list = []
     devices_txt_list = str(open('devices.txt').read()).splitlines()
 
     for i in devices_txt_list:
-        x = device(i)
-        x.get_uptime_datetime()
-        device_list.append(x)
+        device_list.append(device(i))
 
     return device_list
 
@@ -29,7 +28,7 @@ class device:
         self.name = name_in
         self.up_time = None
 
-    def get_uptime_datetime(self,snmp_comm_in='public', snmp_port_in=161):
+    def update_uptime(self, snmp_comm_in='public', snmp_port_in=161):
         errorIndication, errorStatus, errorIndex, varBinds = next(
             getCmd(SnmpEngine(),
                    CommunityData(snmp_comm_in, mpModel=0),
@@ -63,9 +62,14 @@ class device:
 
 
 def main():
-    ut_list = get_device_up_time_list()
+    device_list = get_device_list()
+
+    for i in device_list:
+        i.update_uptime()
+
+
     devices_over_time_limit = 0
-    for i in ut_list:
+    for i in device_list:
         if i.up_time:
             if i.is_over_x_hours():
                 devices_over_time_limit = devices_over_time_limit + 1
