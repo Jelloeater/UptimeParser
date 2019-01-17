@@ -8,40 +8,16 @@ import datetime
 from pysnmp.hlapi import *
 
 
-def get_uptime_datetime(address_in, snmp_comm_in='public', snmp_port_in=161):
-    errorIndication, errorStatus, errorIndex, varBinds = next(
-        getCmd(SnmpEngine(),
-               CommunityData(snmp_comm_in, mpModel=0),
-               UdpTransportTarget((address_in, snmp_port_in)),
-               ContextData(),
-               ObjectType(ObjectIdentity('SNMPv2-MIB', 'sysUpTime', 0)))
-    )
-
-    if errorIndication:
-        logging.error(errorIndication)
-    elif errorStatus:
-        logging.error('%s at %s' % (errorStatus.prettyPrint(),
-                                    errorIndex and varBinds[int(errorIndex) - 1][0] or '?'))
-    else:
-        for varBind in varBinds:
-            logging.info(' = '.join([x.prettyPrint() for x in varBind]))
-
-    try:
-        ticks = int(varBinds[0][1])
-        seconds = ticks / 100
-        return datetime.timedelta(seconds=seconds)
-    except IndexError:
-        return False
-
 
 def get_device_up_time_list():
     device_list = []
-    devices = str(open('devices.txt').read()).splitlines()
-    for i in devices:
-        x = device()
-        x.name = i
-        x.up_time = get_uptime_datetime(i)
+    devices_txt_list = str(open('devices.txt').read()).splitlines()
+
+    for i in devices_txt_list:
+        x = device(i)
+        x.get_uptime_datetime()
         device_list.append(x)
+
     return device_list
 
 
@@ -49,9 +25,34 @@ class device:
     name: str
     up_time: datetime.timedelta
 
-    def __init__(self):
-        self.name = ""
+    def __init__(self,name_in):
+        self.name = name_in
         self.up_time = None
+
+    def get_uptime_datetime(self,snmp_comm_in='public', snmp_port_in=161):
+        errorIndication, errorStatus, errorIndex, varBinds = next(
+            getCmd(SnmpEngine(),
+                   CommunityData(snmp_comm_in, mpModel=0),
+                   UdpTransportTarget((self.name, snmp_port_in)),
+                   ContextData(),
+                   ObjectType(ObjectIdentity('SNMPv2-MIB', 'sysUpTime', 0)))
+        )
+
+        if errorIndication:
+            logging.error(errorIndication)
+        elif errorStatus:
+            logging.error('%s at %s' % (errorStatus.prettyPrint(),
+                                        errorIndex and varBinds[int(errorIndex) - 1][0] or '?'))
+        else:
+            for varBind in varBinds:
+                logging.info(' = '.join([x.prettyPrint() for x in varBind]))
+
+        try:
+            ticks = int(varBinds[0][1])
+            seconds = ticks / 100
+            self.up_time = datetime.timedelta(seconds=seconds)
+        except IndexError:
+            self.up_time = False
 
     def is_over_x_hours(self, over_hours=24):
         dt = datetime.timedelta(hours=over_hours)
