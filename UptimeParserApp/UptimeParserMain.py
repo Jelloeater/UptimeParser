@@ -7,7 +7,7 @@ from xml.etree.ElementTree import Element, SubElement, tostring
 
 from pysnmp.error import PySnmpError
 
-from UptimeParser import device_list
+from UptimeParserApp import device_list
 
 
 logging.basicConfig(filename="uptime.log",
@@ -16,10 +16,6 @@ logging.basicConfig(filename="uptime.log",
 
 import datetime
 from pysnmp.hlapi import *
-
-
-
-
 
 class device():
     # name: str
@@ -32,7 +28,7 @@ class device():
     @staticmethod
     def get_device_list():
         d_list = []
-        devices_txt_list = device_list.device_list
+        devices_txt_list = device_list.device_list.strip().splitlines()
 
         for i in devices_txt_list:
             d_list.append(device(i))
