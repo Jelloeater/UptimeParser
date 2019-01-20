@@ -1,30 +1,35 @@
 import logging
+import os
 import threading
 from multiprocessing.pool import ThreadPool
+from typing import List
+from xml.dom import minidom
+from xml.etree.ElementTree import Element, SubElement, tostring
 
 from pysnmp.error import PySnmpError
+import device_list
 
-logging.basicConfig(  # filename="uptime.log",
-    format="[%(asctime)s] [%(levelname)8s] --- %(message)s (%(filename)s:%(lineno)s)",
-    level=logging.DEBUG)
+logging.basicConfig(filename="uptime.log",
+                    format="[%(asctime)s] [%(levelname)8s] --- %(message)s (%(filename)s:%(lineno)s)",
+                    level=logging.DEBUG)
 
 import datetime
 from pysnmp.hlapi import *
 
 
 def get_device_list():
-    device_list = []
-    devices_txt_list = str(open('devices.txt').read()).splitlines()
+    d_list = []
+    devices_txt_list = device_list.device_list
 
     for i in devices_txt_list:
-        device_list.append(device(i))
+        d_list.append(device(i))
 
-    return device_list
+    return d_list
 
 
 class device():
-    name: str
-    up_time: datetime.timedelta
+    # name: str
+    # up_time: datetime.timedelta
 
     def __init__(self, name_in):
         self.name = name_in
@@ -74,13 +79,14 @@ def update_device_obj_uptime(device_obj: device) -> device:
 
 
 def main():
-    device_list = get_device_list()
+    device_list: List[device] = get_device_list()
 
     # This takes a list of device objects (missing uptime), and then maps them to a threadpool
     # This pool then gets executed and the results of the static helper function and passed into a list
 
     pool = ThreadPool()
-    results = pool.map(update_device_obj_uptime, device_list) # Takes function to work against, and itterable list to work on
+    results = pool.map(update_device_obj_uptime,
+                       device_list)  # Takes function to work against, and itterable list to work on
     pool.close()
     pool.join()
 
@@ -93,12 +99,30 @@ def main():
             logging.error("Cannot get up time from: " + str(i.name))
 
     pool.terminate()
-    return devices_over_time_limit
+
+    # Generate XML Output
+    top = Element('prtg')
+
+    result1 = SubElement(top, 'result')
+    channel = SubElement(result1, 'channel')
+    channel.text = 'Device count'
+    valuel = SubElement(result1, 'value')
+    valuel.text = str(device_list.__len__())
+
+    result2 = SubElement(top, 'result')
+    channel2 = SubElement(result2, 'channel')
+    channel2.text = 'Device over time limit'
+    valuel2 = SubElement(result2, 'value')
+    valuel2.text = str(devices_over_time_limit)
+
+    # Clean XML output for PRTG, strip extra junk
+    reparsed = minidom.parseString(tostring(top).decode())
+    return str(reparsed.toprettyxml(indent="")).replace('<?xml version="1.0" ?>', "").strip()
 
 
 if __name__ == "__main__":
     logging.info("START")
-    x = main()
-    logging.info(x)
-    logging.info("STOP")
-    print(x)
+    logging.info(str(os.getcwd()))
+
+    out = main()
+    print(out)

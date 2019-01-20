@@ -1,0 +1,16 @@
+device_list='''
+demo.snmplabs.com
+demo.snmplabs.com
+google.com
+127.0.0.1
+demo.snmplabs.com
+demo.
+127.0.0.1
+demo.snmplabs.com
+demo.snmplabs.com
+demo.sn
+demo.snmplabs.com
+yahoo.com
+demo.snmplabs.com
+demo.snmplabs.com
+'''
