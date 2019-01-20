@@ -8,3 +8,6 @@ Simple application to report on SNMP uptime for various devices
 * Install all libraries in requirements.txt with PIP
 * To use PyInstaller to generate EXE, you will need MS Visual C++ 2015 14.0.23918 redistributable
 * Ex `pyinstaller -F UptimeParserApp/UptimeParserMain.py` (build from root dir)
+
+# Testing
+* Just run Pytest `pytest --cov -s -v` (from root dir)

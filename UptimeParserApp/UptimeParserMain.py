@@ -8,20 +8,20 @@ from xml.etree.ElementTree import Element, SubElement, tostring
 from pysnmp.error import PySnmpError
 
 from UptimeParserApp import device_list
-
+from UptimeParserApp.ChannelDefinition import CustomSensorResult
+import datetime
 
 logging.basicConfig(filename="uptime.log",
                     format="[%(asctime)s] [%(levelname)8s] --- %(message)s (%(filename)s:%(lineno)s)",
                     level=logging.DEBUG)
-
-import datetime
 from pysnmp.hlapi import *
 
-class device():
+
+class device:
     # name: str
     # up_time: datetime.timedelta
 
-    def __init__(self, name_in):
+    def __init__(self, name_in:str):
         self.name = name_in
         self.up_time = None
 
@@ -68,12 +68,11 @@ class device():
             return False
 
 
-class main():
-
+class main:
 
     @staticmethod
     def update_device_obj_uptime(device_obj: device) -> device:
-        '''Takes in device object and updates it's uptime property'''
+        """Takes in device object and updates it's uptime property"""
         logging.debug(threading.current_thread())
         try:
             device_obj.update_uptime()
@@ -82,14 +81,14 @@ class main():
         return device_obj
 
     @staticmethod
-    def create_XML_device_data(device_list_in: list):
+    def generate_PRTG_dict(device_list_in: list) -> dict:
 
-        # This takes a list of device objects (missing uptime), and then maps them to a threadpool
+        # This takes a list of device objects (missing uptime), and then maps them to a thread pool
         # This pool then gets executed and the results of the static helper function and passed into a list
 
         pool = ThreadPool()
         results = pool.map(main.update_device_obj_uptime,
-                           device_list_in)  # Takes function to work against, and itterable list to work on
+                           device_list_in)  # Takes function to work against, and iterable list to work on
         pool.close()
         pool.join()
 
@@ -103,8 +102,7 @@ class main():
 
         pool.terminate()
 
-        data_in = {"Device count": str(device_list_in.__len__()), "Device over time limit": devices_over_time_limit}
-        return main.generate_xml(data_in)
+        return {"Device count": str(device_list_in.__len__()), "Device over time limit": devices_over_time_limit}
 
     @staticmethod
     def generate_xml(data_in: dict) -> str:
@@ -113,18 +111,32 @@ class main():
         for k, v in data_in.items():
             result = SubElement(top, 'result')
             channel = SubElement(result, 'channel')
-            channel.text = k
+            channel.text = str(k)
             value = SubElement(result, 'value')
+            if v is not int:
+                try:
+                    v = int(v)
+                except ValueError:
+                    raise Exception('Input value needs to be an int')
             value.text = str(v)
 
         # Clean XML output for PRTG, strip extra junk
         clean_xml = minidom.parseString(tostring(top).decode())
         return str(clean_xml.toprettyxml(indent="")).replace('<?xml version="1.0" ?>', "").strip()
 
+    @staticmethod
+    def generate_json(data_in: dict) -> str:
+        result = CustomSensorResult("")
+        for k, v in data_in.items():
+            result.add_channel(channel_name=str(k), unit="Custom", value=str(v))
+        return result.get_json_result()
+
 
 if __name__ == "__main__":
     logging.info("START")
     logging.info(str(os.getcwd()))
 
-    out = main.create_XML_device_data(device.get_device_list())
-    print(out)
+    PRTG_data = main.generate_PRTG_dict(device.get_device_list())
+
+    print(main.generate_json(PRTG_data))
+    # print(main.generate_xml(PRTG_data))
