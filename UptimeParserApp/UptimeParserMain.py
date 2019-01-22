@@ -23,15 +23,17 @@ class device:
     # name: str
     # up_time: datetime.timedelta
 
-    def __init__(self, name_in:str):
+    def __init__(self, name_in:str,snmp_in:str):
         self.name = name_in
         self.up_time = None
+        self.snmp_comm = snmp_in
 
 
-    def update_uptime(self, snmp_comm_in='public', snmp_port_in=161):
+
+    def update_uptime(self, snmp_port_in=161):
         errorIndication, errorStatus, errorIndex, varBinds = next(
             getCmd(SnmpEngine(),
-                   CommunityData(snmp_comm_in, mpModel=0),
+                   CommunityData(self.snmp_comm, mpModel=0),
                    UdpTransportTarget((self.name, snmp_port_in)),
                    ContextData(),
                    ObjectType(ObjectIdentity('SNMPv2-MIB', 'sysUpTime', 0)))
@@ -68,8 +70,10 @@ class main:
         """ Take arguments and direct program """
         parser = argparse.ArgumentParser()
 
-        parser.add_argument("-ip", help="IP address in CIDR notation ex 192.168.1.0/24",
+        parser.add_argument("-ip", help="IP address in CIDR notation (ex 192.168.1.0/24)",
                             required=True)
+
+        parser.add_argument("-snmp", help="SNMP Community string (ex public)")
 
         group = parser.add_mutually_exclusive_group(required=True)
         group.add_argument("-j",
@@ -85,20 +89,35 @@ class main:
             parser.print_help()
             sys.exit(1)
 
+        main.main_logic(args) # Pass args to logic
+
+        logging.info("EOP")
+
+    @staticmethod
+    def main_logic(args_in:argparse):
+
+        ip_obj = ipaddress.IPv4Network(args_in.ip)
+        hosts = set() # Create empty unordered set
+        for h in ip_obj.hosts():
+            hosts.add(h)
+
+        if hosts.__len__() == 0:  # In case we input a /32, still create a host in the list
+            hosts.add(ipaddress.IPv4Network(args_in.ip).network_address)
+
         # Feeds generated IP host list tp sensor data generator
         device_list = []
-        for i in ipaddress.IPv4Network(args.ip).hosts():
-            device_list.append(device(str(i)))
+        for i in hosts:
+            if args_in.snmp is None:
+                device_list.append(device(name_in=str(i),snmp_in='public'))
+            else:
+                device_list.append(device(name_in=str(i), snmp_in=args_in.snmp))
 
         PRTG_data = main.generate_sensor_data(device_list)
 
-        if args.x:
+        if args_in.x:
             print(main.generate_xml(PRTG_data))
-        if args.j:
+        if args_in.j:
             print(main.generate_json(PRTG_data))
-
-
-        logging.info("EOP")
 
     @staticmethod
     def update_device_obj_uptime(device_obj: device) -> device:
