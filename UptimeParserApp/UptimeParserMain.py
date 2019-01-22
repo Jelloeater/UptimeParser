@@ -1,5 +1,9 @@
+import argparse
+import datetime
+import ipaddress
 import logging
 import os
+import sys
 import threading
 from multiprocessing.pool import ThreadPool
 from xml.dom import minidom
@@ -7,9 +11,7 @@ from xml.etree.ElementTree import Element, SubElement, tostring
 
 from pysnmp.error import PySnmpError
 
-from UptimeParserApp import device_list
 from UptimeParserApp.ChannelDefinition import CustomSensorResult
-import datetime
 
 logging.basicConfig(filename="uptime.log",
                     format="[%(asctime)s] [%(levelname)8s] --- %(message)s (%(filename)s:%(lineno)s)",
@@ -25,15 +27,6 @@ class device:
         self.name = name_in
         self.up_time = None
 
-    @staticmethod
-    def get_device_list():
-        d_list = []
-        devices_txt_list = device_list.device_list.strip().splitlines()
-
-        for i in devices_txt_list:
-            d_list.append(device(i))
-
-        return d_list
 
     def update_uptime(self, snmp_comm_in='public', snmp_port_in=161):
         errorIndication, errorStatus, errorIndex, varBinds = next(
@@ -71,6 +64,43 @@ class device:
 class main:
 
     @staticmethod
+    def run_main():
+        """ Take arguments and direct program """
+        parser = argparse.ArgumentParser()
+
+        parser.add_argument("-ip", help="IP address in CIDR notation ex 192.168.1.0/24",
+                            required=True)
+
+        group = parser.add_mutually_exclusive_group(required=True)
+        group.add_argument("-j",
+                            action="store_true",
+                            help="JSON Output")
+        group.add_argument("-x",
+                            action="store_true",
+                            help="XML Output")
+
+
+        args = parser.parse_args()
+        if len(sys.argv) == 1:  # Displays help and lists servers (to help first time users)
+            parser.print_help()
+            sys.exit(1)
+
+        # Feeds generated IP host list tp sensor data generator
+        device_list = []
+        for i in ipaddress.IPv4Network(args.ip).hosts():
+            device_list.append(device(str(i)))
+
+        PRTG_data = main.generate_sensor_data(device_list)
+
+        if args.x:
+            print(main.generate_xml(PRTG_data))
+        if args.j:
+            print(main.generate_json(PRTG_data))
+
+
+        logging.info("EOP")
+
+    @staticmethod
     def update_device_obj_uptime(device_obj: device) -> device:
         """Takes in device object and updates it's uptime property"""
         logging.debug(threading.current_thread())
@@ -81,7 +111,7 @@ class main:
         return device_obj
 
     @staticmethod
-    def generate_PRTG_dict(device_list_in: list) -> dict:
+    def generate_sensor_data(device_list_in: list) -> dict:
 
         # This takes a list of device objects (missing uptime), and then maps them to a thread pool
         # This pool then gets executed and the results of the static helper function and passed into a list
@@ -136,7 +166,4 @@ if __name__ == "__main__":
     logging.info("START")
     logging.info(str(os.getcwd()))
 
-    PRTG_data = main.generate_PRTG_dict(device.get_device_list())
-
-    print(main.generate_json(PRTG_data))
-    # print(main.generate_xml(PRTG_data))
+    main.run_main()

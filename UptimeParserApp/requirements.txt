@@ -2,3 +2,4 @@ pysnmp
 pytest
 pytest-cov
 pytest-pycharm
+ipaddress
