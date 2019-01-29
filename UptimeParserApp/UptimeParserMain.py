@@ -23,12 +23,10 @@ class device:
     # name: str
     # up_time: datetime.timedelta
 
-    def __init__(self, name_in:str,snmp_in:str):
+    def __init__(self, name_in: str, snmp_in: str):
         self.name = name_in
         self.up_time = None
         self.snmp_comm = snmp_in
-
-
 
     def update_uptime(self, snmp_port_in=161):
         errorIndication, errorStatus, errorIndex, varBinds = next(
@@ -77,24 +75,23 @@ class main:
 
         group = parser.add_mutually_exclusive_group(required=True)
         group.add_argument("-j",
-                            action="store_true",
-                            help="JSON Output")
+                           action="store_true",
+                           help="JSON Output")
         group.add_argument("-x",
-                            action="store_true",
-                            help="XML Output")
-
+                           action="store_true",
+                           help="XML Output")
 
         args = parser.parse_args()
         if len(sys.argv) == 1:  # Displays help and lists servers (to help first time users)
             parser.print_help()
             sys.exit(0)
 
-        main.main_logic(args) # Pass args to logic
+        main.main_logic(args)  # Pass args to logic
 
         logging.info("EOP")
 
     @staticmethod
-    def main_logic(args_in:argparse):
+    def main_logic(args_in: argparse):
 
         try:
             ip_obj = ipaddress.IPv4Network(args_in.ip)
@@ -102,7 +99,7 @@ class main:
             print("Invalid IP address")
             sys.exit(1)
 
-        hosts = set() # Create empty unordered set
+        hosts = set()  # Create empty unordered set
         for h in ip_obj.hosts():
             hosts.add(h)
 
@@ -113,7 +110,7 @@ class main:
         device_list = []
         for i in hosts:
             if args_in.snmp is None:
-                device_list.append(device(name_in=str(i),snmp_in='public'))
+                device_list.append(device(name_in=str(i), snmp_in='public'))
             else:
                 device_list.append(device(name_in=str(i), snmp_in=args_in.snmp))
 
@@ -133,7 +130,7 @@ class main:
             device_obj.update_uptime()
         except MibNotFoundError:
             logging.critical("MISSING MIB Libs")
-            sys.exit(1) # PEACE OUT!
+            sys.exit(1)  # PEACE OUT!
         return device_obj
 
     @staticmethod
@@ -166,7 +163,7 @@ class main:
         return {"Up Device count": up_device_count, "Device over time limit": devices_over_time_limit}
 
     @staticmethod
-    def generate_xml(data_in: dict) -> str:
+    def generate_xml(data_in: dict, message_in="Ok") -> str:
         top = Element('prtg')
 
         for k, v in data_in.items():
@@ -180,14 +177,15 @@ class main:
                 except ValueError:
                     raise Exception('Input value needs to be an int')
             value.text = str(v)
-
+        result = SubElement(top, 'text')
+        result.text = str(message_in)
         # Clean XML output for PRTG, strip extra junk
         clean_xml = minidom.parseString(tostring(top).decode())
         return str(clean_xml.toprettyxml(indent="")).replace('<?xml version="1.0" ?>', "").strip()
 
     @staticmethod
-    def generate_json(data_in: dict) -> str:
-        result = CustomSensorResult("")
+    def generate_json(data_in: dict, message_in="Ok") -> str:
+        result = CustomSensorResult(str(message_in))
         for k, v in data_in.items():
             result.add_channel(channel_name=str(k), unit="Custom", value=str(v))
         return result.get_json_result()
