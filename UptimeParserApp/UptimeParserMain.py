@@ -9,7 +9,7 @@ from multiprocessing.pool import ThreadPool
 from xml.dom import minidom
 from xml.etree.ElementTree import Element, SubElement, tostring
 
-from pysnmp.error import PySnmpError
+from pysnmp.smi.error import MibNotFoundError
 
 from UptimeParserApp.ChannelDefinition import CustomSensorResult
 
@@ -87,7 +87,7 @@ class main:
         args = parser.parse_args()
         if len(sys.argv) == 1:  # Displays help and lists servers (to help first time users)
             parser.print_help()
-            sys.exit(1)
+            sys.exit(0)
 
         main.main_logic(args) # Pass args to logic
 
@@ -96,7 +96,12 @@ class main:
     @staticmethod
     def main_logic(args_in:argparse):
 
-        ip_obj = ipaddress.IPv4Network(args_in.ip)
+        try:
+            ip_obj = ipaddress.IPv4Network(args_in.ip)
+        except ValueError:
+            print("Invalid IP address")
+            sys.exit(1)
+
         hosts = set() # Create empty unordered set
         for h in ip_obj.hosts():
             hosts.add(h)
@@ -126,8 +131,9 @@ class main:
         device_obj.update_uptime()
         try:
             device_obj.update_uptime()
-        except PySnmpError:
-            logging.error("Bad Address: " + device_obj.name)
+        except MibNotFoundError:
+            logging.critical("MISSING MIB Libs")
+            sys.exit(1) # PEACE OUT!
         return device_obj
 
     @staticmethod
@@ -152,7 +158,12 @@ class main:
 
         pool.terminate()
 
-        return {"Device count": str(device_list_in.__len__()), "Device over time limit": devices_over_time_limit}
+        up_device_count = 0
+        for i in device_list_in:
+            if i.up_time != False:
+                up_device_count = up_device_count + 1
+
+        return {"Up Device count": up_device_count, "Device over time limit": devices_over_time_limit}
 
     @staticmethod
     def generate_xml(data_in: dict) -> str:
