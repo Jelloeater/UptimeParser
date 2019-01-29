@@ -123,6 +123,7 @@ class main:
     def update_device_obj_uptime(device_obj: device) -> device:
         """Takes in device object and updates it's uptime property"""
         logging.debug(threading.current_thread())
+        device_obj.update_uptime()
         try:
             device_obj.update_uptime()
         except PySnmpError:
